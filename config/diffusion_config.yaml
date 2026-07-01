@@ -1,0 +1,76 @@
+DDPM_config:
+  n_steps: 1000
+  schedule: 'linear' 
+  min_beta: 0.0001
+  max_beta: 0.02
+  vector_c: 4
+  vector_l: 618
+
+DIT_config_film:
+  seq_len : 618
+  seq_channels : 8
+  patch_size : 1
+  channels_out: 4
+  num_layers : 12
+  hidden_size : 512
+  num_heads : 8
+  head_dim : 64
+  timestep_emb_dim : 512
+  class_emb_dim: 128
+  context_dim: 4950
+  age_dim: 126
+
+DIT_config_cat:
+  seq_len : 618
+  seq_channels : 8
+  patch_size : 1
+  channels_out: 4
+  num_layers : 12
+  hidden_size : 512
+  num_heads : 8
+  head_dim : 64
+  timestep_emb_dim : 512
+  class_emb_dim: 128
+  age_dim: 126
+
+UNET_config_fm:
+  seq_len: 618
+  im_channels: 8          # x + cond2 concatenated in ddpm
+  out_channels: 4
+  down_channels: [64, 128, 256]
+  mid_channels:  [256, 256, 128]
+  down_sample: [True, True]
+  num_heads: 8
+  num_down_layers: 1
+  num_mid_layers: 1
+  num_up_layers: 1
+  time_emb_dim: 512
+  class_emb_dim: 128      # age + sex embedding dim
+  cond_channels: 1        # SC vector treated as single channel
+  cross_attn_in_down_up: False
+
+UNET_config_graph:
+  seq_len: 618
+  im_channels: 8
+  out_channels: 4
+  down_channels: [64, 128, 256]
+  mid_channels:  [256, 256, 128]
+  down_sample: [True, True]
+  num_heads: 8
+  num_down_layers: 1
+  num_mid_layers: 1
+  num_up_layers: 1
+  time_emb_dim: 512
+  class_emb_dim: 128
+  cond_channels: 4        # SCGraphModel1D output channels
+  cross_attn_in_down_up: False
+
+Graph_encoder_config:
+  in_channels: 100
+  out_channels: 4
+  latent_dim: 618
+  down_channels : [128, 256, 512]
+  down_sample : [True, True, True]
+  attn_down : [True, True, True]
+  num_heads: 8
+  num_down_layers : 2

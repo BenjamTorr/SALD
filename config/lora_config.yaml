@@ -1,0 +1,578 @@
+config_1:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 32, alpha: 16 }
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8,  alpha: 2 }
+  lambd: 1
+  weight_decay: 0.1
+  denoising_steps: 50
+  K: 1 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: false # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 4 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0001
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_2:
+  lora_dims:
+    attn_proj:   { r: 4, alpha: 2 }
+    output_proj: { r: 4, alpha: 2 }
+    proj_out:    { r: 8, alpha: 4 }
+    mlp_block:   { r: 4, alpha: 2 }
+    adaln:       { r: 4,  alpha: 2 }
+  lambd: 1
+  weight_decay: 0.01
+  denoising_steps: 50
+  K: 1 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: false # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 4 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0001
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_3:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 4 }
+    output_proj: { r: 8, alpha: 4 }
+    proj_out:    { r: 64, alpha: 32 }
+    mlp_block:   { r: 8, alpha: 4 }
+    adaln:       { r: 8,  alpha: 4 }
+  lambd: 0.05
+  weight_decay: 0.1
+  denoising_steps: 50
+  K: 1 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 4 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0001
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_4:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 32, alpha: 16 }
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8,  alpha: 2 }
+  lambd: 1
+  weight_decay: 0.1
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 1
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 4 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0001
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+
+config_5:
+  lora_dims:
+    attn_proj:   { r: 4, alpha: 2 }
+    output_proj: { r: 4, alpha: 2 }
+    proj_out:    { r: 8, alpha: 4 }
+    mlp_block:   { r: 4, alpha: 2 }
+    adaln:       { r: 4,  alpha: 2 }
+  lambd: 0.1
+  weight_decay: 0.1
+  denoising_steps: 50
+  K: 1 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 1
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 4 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0001
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_6:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 32, alpha: 16 }
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.15
+  weight_decay: 0.07
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.00004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_7:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 32, alpha: 16 }
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.25
+  weight_decay: 0.07
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.00004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_8:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 32, alpha: 16 }
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.25
+  weight_decay: 0.03
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.00004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_9:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 64, alpha: 32}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.25
+  weight_decay: 0.07
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.00004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_10:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 64, alpha: 32}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.25
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.00004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_11:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 64, alpha: 32}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.35
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.00004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_12:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 64, alpha: 32}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.5
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.00004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_13:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 64, alpha: 32}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.6
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0001
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_14:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 64, alpha: 32}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.8
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.00005
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_15:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 64, alpha: 32}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.6
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 4
+  accumulation_steps: 16
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 10 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0002
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_16:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 64, alpha: 32}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.6
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 1 # number of steps in the DDIM to track gradients from 
+  batch_size: 2
+  accumulation_steps: 16
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 5
+  m: 10 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0002
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_17:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 64, alpha: 32}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.6
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_18:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 64, alpha: 32}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 1
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: true # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_19:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 32, alpha: 16}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.4
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 8
+  accumulation_steps: 8
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 5 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_20:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 32, alpha: 16}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.4
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 16
+  accumulation_steps: 4
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 1 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_21:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 32, alpha: 16}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 1.2
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 16
+  accumulation_steps: 4
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: true # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 4
+  m: 1 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+
+config_22:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 32, alpha: 16}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 0.1
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 16
+  accumulation_steps: 4
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: true #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 2
+  m: 1 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+
+config_21_ablation:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 32, alpha: 16}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 1.2
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 16
+  accumulation_steps: 4
+  include_diff_loss: true # include regularzation
+  use_fc20_as_target: false # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 4
+  m: 1 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false
+
+config_21_KL_ablation:
+  lora_dims:
+    attn_proj:   { r: 8, alpha: 2 }
+    output_proj: { r: 8, alpha: 2 }
+    proj_out:    { r: 32, alpha: 16}
+    mlp_block:   { r: 8, alpha: 2 }
+    adaln:       { r: 8, alpha: 2 }
+  lambd: 1.2
+  weight_decay: 0.0
+  denoising_steps: 50
+  K: 5 # number of steps in the DDIM to track gradients from 
+  batch_size: 16
+  accumulation_steps: 4
+  include_diff_loss: false # include regularzation
+  use_fc20_as_target: true # whether to predict R(X_high)
+  L1: false #wheter to use l1 loss
+  LV: true #low variance option, repeat lasst denoising step -> predict several times
+  n_rep: 4
+  m: 1 # number of matrices to sample, predict and then average results before comparing
+  lr: 0.0004
+  include_mlp: true
+  include_ln: true
+  use_scheduler: false

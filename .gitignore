@@ -1,0 +1,52 @@
+# Python cache/build artifacts
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual envs
+.venv/
+venv/
+env/
+scripts/ed5519 
+scripts/ed5519.pub
+
+# Jupyter notebooks
+notebooks/
+*.ipynb
+.ipynb_checkpoints/
+
+# Data and large artifacts
+data/
+datasets/
+*.h5
+*.hdf5
+*.npz
+*.npy
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Logs and runtime outputs
+*.log
+logs/
+logs*/
+analysis_outputs/
+plots/
+plots*/
+**/plots/
+**/plots*/
+outputs/
+results/
+checkpoints/
+runs/
+wandb/
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store

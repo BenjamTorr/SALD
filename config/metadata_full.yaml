@@ -1,0 +1,10 @@
+experiment_name: 'No mean whole data'
+seed: 1
+parcelattion: 'Schaefer_100_parcels_20min_3min_7min'
+split_file: '/home/ibta/benjamin/diffusion_experiments/Diffusion_FCSC51015/diffusion-models-project/experiments/no_mean/config/splits_full.npz'
+environment_file: 'no_mean'
+master_data_dir: '/data/benjamin_project/diffusion_models/experiments/slices/'
+trait_variable: 'nihtbx_totalcomp_agecorrected'
+date: '...'
+notes: |
+  The effect of structural connectivity might be really small on FC, we substract the mean to really emphasize the individualized effect
