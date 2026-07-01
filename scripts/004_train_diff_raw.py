@@ -6,19 +6,15 @@ from data.load_data import load_data
 import random
 import os
 from vae.unet_vae import vae_unet
-from diffusion.ddpm_graph import ddpm_graph
 from diffusion.ddpm import ddpm
-from diffusion.dit_cat import dit_cat
 from diffusion.dit_FiLM import dit_film
-from diffusion.graph_encoder import SCGraphModel1D
-from data.loaders import FC_SCGraphDataset, FC_SC_vec_Dataset
-from data.loaders import custom_collate_fn
+from data.loaders import FC_SC_vec_Dataset
 from torch.utils.data import DataLoader
 from utils.preprocessing.transformations import gaussian_resample
 import sys
 
 ##### preconfig  #######
-name = 'ddpm_5min_graph'
+name = 'ddpm_5min_fm'
 time_short = 5
 
 use_sc_resample = True
@@ -28,8 +24,6 @@ use_cond_sc = 1
 use_cond_3 = 1
 use_cond_cov = 1
 
-model_method = 'graph' #graph
-
 print(
     "===== CONFIG SUMMARY =====\n"
     f"Name:            {name}\n"
@@ -38,7 +32,6 @@ print(
     f"Use cond SC:     {use_cond_sc}\n"
     f"Use cond FC3:    {use_cond_3}\n"
     f"Use covariates:  {use_cond_cov}\n"
-    f"Model method:    {model_method}\n"
     "=========================="
 )
 
@@ -147,29 +140,8 @@ if use_cond_cov == 0:
     Cov_val = np.zeros_like(Cov_val)
 
 
-## Graph Loaders
-pin_memory = device.type == "cuda"
-
-training_loader = DataLoader(FC_SCGraphDataset(Z20_train,
-                                                SC_train * use_cond_sc,
-                                                Z_t_train * use_cond_3, 
-                                                Cov_train, 
-                                                y_train,age_dim = 126, 
-                                               transform_sc = (not use_sc_resample), shape = (-1, 1, 100, 100)), batch_size=32, shuffle =True, collate_fn= custom_collate_fn, pin_memory=pin_memory)
-validation_loader = DataLoader(FC_SCGraphDataset(Z20_val, 
-                                                 SC_val * use_cond_sc, 
-                                                 Z_t_val * use_cond_3, 
-                                                 Cov_val,
-                                                   y_val, age_dim = 126, 
-                                               transform_sc =(not use_sc_resample), shape = (-1, 1, 100, 100)), batch_size=32, shuffle =False, collate_fn= custom_collate_fn, pin_memory=pin_memory)
-test_loader = DataLoader(FC_SCGraphDataset(Z20_test, 
-                                           SC_test * use_cond_sc, 
-                                           Z_t_test * use_cond_3, 
-                                           Cov_test,
-                                             y_test, age_dim = 126, 
-                                               transform_sc = (not use_sc_resample), shape = (-1, 1, 100, 100)), batch_size=32, shuffle =False, collate_fn= custom_collate_fn, pin_memory=pin_memory)
-
 ## FiLM loader
+pin_memory = device.type == "cuda"
 
 training_loaderfm = DataLoader(FC_SC_vec_Dataset(Z20_train, 
                                                  SC_train * use_cond_sc, 
@@ -193,27 +165,11 @@ test_loaderfm = DataLoader(FC_SC_vec_Dataset(Z20_test,
 
 
 #### FiLM version
-if model_method == 'fm':
-    dit_fm = dit_film(seq_len = diffusion_config['DIT_config_cat']['seq_len'], seq_channels=diffusion_config['DIT_config_cat']['seq_channels'], config = diffusion_config['DIT_config_film']).to(device)
-    ddpm_fm = ddpm(network = dit_fm, n_steps = diffusion_config['DDPM_config']['n_steps'], min_beta = diffusion_config['DDPM_config']['min_beta'],
-                max_beta=diffusion_config['DDPM_config']['max_beta'], schedule='linear', device = device, 
-                vector_cl = (diffusion_config['DDPM_config']['vector_c'], diffusion_config['DDPM_config']['vector_l'])).to(device)
-    optimizer = torch.optim.Adam(ddpm_fm.parameters(), lr=1e-4)
-    ddpm_fm.train_ddpm_amp_timestep(loader = training_loaderfm, loader_val = validation_loaderfm, n_epochs = 500,
-                        optimizer= optimizer, patience = 25, accumulation_steps = 1, use_scheduler= True, debug = False, 
-                        store_path = MAIN_MODEL_DIR + name + '_fm.pt')
-
-
-
-### Graph version  ####
-if model_method == 'graph':
-    graph_enc = SCGraphModel1D(args = diffusion_config['Graph_encoder_config'])
-    dit_cross = dit_cat(seq_len = diffusion_config['DIT_config_cat']['seq_len'], seq_channels=diffusion_config['DIT_config_cat']['seq_channels'], config = diffusion_config['DIT_config_cat']).to(device)
-    ddpm_g = ddpm_graph(network = dit_cross, GraphEncoder= graph_enc, n_steps = diffusion_config['DDPM_config']['n_steps'], min_beta = diffusion_config['DDPM_config']['min_beta'],
-                max_beta=diffusion_config['DDPM_config']['max_beta'], schedule='linear', device = device, 
-                vector_cl = (diffusion_config['DDPM_config']['vector_c'], diffusion_config['DDPM_config']['vector_l'])).to(device)
-
-    optimizer = torch.optim.Adam(ddpm_g.parameters(), lr=1e-4)
-    ddpm_g.train_ddpm_amp(loader = training_loader, loader_val = validation_loader, n_epochs = 500,
-                        optimizer= optimizer, patience = 25, accumulation_steps = 1, use_scheduler= True, debug = False, 
-                        store_path = MAIN_MODEL_DIR + name + '_graphV2.pt')
+dit_fm = dit_film(seq_len = diffusion_config['DIT_config_cat']['seq_len'], seq_channels=diffusion_config['DIT_config_cat']['seq_channels'], config = diffusion_config['DIT_config_film']).to(device)
+ddpm_fm = ddpm(network = dit_fm, n_steps = diffusion_config['DDPM_config']['n_steps'], min_beta = diffusion_config['DDPM_config']['min_beta'],
+            max_beta=diffusion_config['DDPM_config']['max_beta'], schedule='linear', device = device,
+            vector_cl = (diffusion_config['DDPM_config']['vector_c'], diffusion_config['DDPM_config']['vector_l'])).to(device)
+optimizer = torch.optim.Adam(ddpm_fm.parameters(), lr=1e-4)
+ddpm_fm.train_ddpm_amp_timestep(loader = training_loaderfm, loader_val = validation_loaderfm, n_epochs = 500,
+                    optimizer= optimizer, patience = 25, accumulation_steps = 1, use_scheduler= True, debug = False,
+                    store_path = MAIN_MODEL_DIR + name + '_fm.pt')

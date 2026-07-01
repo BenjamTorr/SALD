@@ -1,3 +1,5 @@
+# Attention/TransformerLayer/patch-embedding adapted from https://github.com/explainingai-code/DiT-PyTorch
+
 import torch
 import torch.nn as nn
 from einops import rearrange

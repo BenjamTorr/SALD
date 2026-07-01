@@ -20,7 +20,7 @@ notebooks/
 .ipynb_checkpoints/
 
 # Data and large artifacts
-data/
+/data/
 datasets/
 *.h5
 *.hdf5

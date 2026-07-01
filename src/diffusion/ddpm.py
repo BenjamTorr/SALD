@@ -1,3 +1,5 @@
+# Linear noise scheduler adapted from https://github.com/explainingai-code/DDPM-Pytorch
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -81,33 +83,6 @@ class ddpm(nn.Module):
             "max_l2": float(np.max(l2s)),
             "min_l2": float(np.min(l2s)),
         }
-
-    def _collect_lora_grad_stats(self):
-        """Return per-parameter and aggregated gradient norms for LoRA layers."""
-        stats = []
-        for name, param in self.named_parameters():
-            if "lora" not in name.lower():
-                continue
-            if param.grad is None:
-                continue
-            g = param.grad.detach()
-            stats.append({
-                "name": name,
-                "l2": g.norm().item(),
-                "max_abs": g.abs().max().item(),
-            })
-
-        if not stats:
-            return {"per_param": [], "mean_l2": None, "max_l2": None, "min_l2": None}
-
-        l2s = [s["l2"] for s in stats]
-        return {
-            "per_param": stats,
-            "mean_l2": float(np.mean(l2s)),
-            "max_l2": float(np.max(l2s)),
-            "min_l2": float(np.min(l2s)),
-        }
-
 
     def construct_x0(self, noisy, t, eta_theta):
         n, _, _ = noisy.shape
@@ -290,7 +265,6 @@ class ddpm(nn.Module):
 
     def train_ddpm_amp(self, loader, loader_val, n_epochs, optimizer, patience= 10, accumulation_steps = 1, use_scheduler = False, debug = False, store_path="models/ddpm_cond_model.pt"):
         mse = nn.MSELoss()
-        #mse = nn.L1Loss(reduction='mean')
         best_loss = float("inf")
         n_steps = self.n_steps
         best_epoch = 0
@@ -344,7 +318,6 @@ class ddpm(nn.Module):
                     eta_theta = self.backward(noisy_imgs, t, cond1, cond2, cov_cond)
 
                     # Optimizing the MSE between the noise plugged and the predicted noise
-                    #loss = mse(eta_theta, eta)
                     loss = mse(eta_theta, eta) / accumulation_steps
                 scaler.scale(loss).backward()
                 if (step + 1) % accumulation_steps == 0 or (step + 1) == len(loader):
@@ -604,449 +577,6 @@ class ddpm(nn.Module):
 
         plt.show()
 
-    def fine_tune_DRAFT_prediction_old(
-        self,
-        loader,
-        loader_val,
-        n_epochs,
-        optimizer,
-        guide_model,
-        decoder,
-        denoising_steps=1000,
-        K=5,
-        patience=10,
-        accumulation_steps=1,
-        lambd=0.05,
-        include_diff_loss = True, 
-        L1 = False,
-        warmup_iters=200,
-        use_scheduler=True,
-        LV = True,
-        n_rep = 2,
-        m = 1,
-        steps_log = 200,                  
-        debug=False,
-        store_path="fine_tuning/models/feature.pt",
-    ):
-        print(f'\nWorking on model saved on {store_path}\n')
-        # ==========================================================
-        # 🔹 Freeze auxiliary networks
-        # ==========================================================
-        guide_model.eval()
-        decoder.eval()
-        for p in guide_model.parameters():
-            p.requires_grad = False
-        for p in decoder.parameters():
-            p.requires_grad = False
-        mse = nn.MSELoss()
-        if L1:
-            mse = nn.L1Loss()
-
-        
-        best_loss, best_step = float("inf"), 0
-
-        losses, val_losses = [], []
-        no_improvement_counter = 0
-
-        # ==========================================================
-        # 🔹 Learning-rate scheduler: linear warmup → cosine annealing
-        # ==========================================================
-
-        steps_per_epoch = len(loader)
-        updates_per_epoch = steps_per_epoch // accumulation_steps
-        total_updates = n_epochs * updates_per_epoch
-
-        base_lr = optimizer.param_groups[0]['lr']
-        eta_min = base_lr / 25
-
-        # You want 4 cosine restart cycles
-        num_cycles = 4
-        T_0 = total_updates // num_cycles  # optimizer steps per cycle
-
-        autocast_kwargs = {"device_type": "cuda", "dtype": torch.bfloat16}
-        # Warmup is always applied; the cosine phase is optional.
-        warmup = torch.optim.lr_scheduler.LinearLR(
-            optimizer, start_factor=1e-3, end_factor=1.0, total_iters=warmup_iters
-        )
-        scheduler = warmup
-        if use_scheduler:
-            cosine = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                optimizer,
-                T_0=T_0,
-                T_mult=1,       # keep each cycle same length (set >1 to expand)
-                eta_min=eta_min
-            )
-            scheduler = torch.optim.lr_scheduler.SequentialLR(
-                optimizer, schedulers=[warmup, cosine], milestones=[warmup_iters]
-            )
-
-        scaler = torch.amp.GradScaler("cuda", enabled=False)
-        optimizer.zero_grad()
-
-        # ==========================================================
-        # 🔹 Baseline: evaluate with LoRA weights = 0
-        # ==========================================================
-
-        print("\n🔍 Evaluating baseline (LoRA weights = 0)...")
-        lora_params = []
-        for name, param in self.named_parameters():
-            if "lora" in name.lower():
-                lora_params.append((param, param.data.clone()))
-                param.data.zero_()
-
-        self.network.eval()
-        baseline_loss, baseline_feature_loss = 0.0, 0.0
-        
-        with torch.no_grad():
-            for step, batch in enumerate(tqdm(loader_val, desc="Baseline eval", colour="#ffaa00", leave=False)):
-                with torch.autocast(**autocast_kwargs):
-                    real, cond1, cond2, cov_cond, target = batch
-                    real = real.to(self.device).float()
-                    cond1 = cond1.to(self.device).float()
-                    cov_cond = cov_cond.to(self.device).float()
-                    cond2 = cond2.to(self.device)
-                    B, S, C, _ = cond2.shape
-                    s_idx = random.randint(0, S - 1)
-                    cond2 = cond2[:, s_idx].to(self.device).reshape(B, C, -1)
-                    target = target.to(self.device).float()
-                    target_z = (target - y_mean) / y_std
-                    n = len(cov_cond)
-                    
-                    loss_diff = torch.tensor(0.0, device=self.device)
-                    def chk(name, x):
-                        if not torch.is_tensor(x):
-                            return
-                        if not torch.isfinite(x).all():
-                            finite = x[torch.isfinite(x)]
-                            if finite.numel() == 0:
-                                raise RuntimeError(f"{name}: all values are NaN/Inf")
-                            raise RuntimeError(
-                                f"{name} non-finite detected | "
-                                f"min={finite.min().item():.3e}, "
-                                f"max={finite.max().item():.3e}"
-                            )
-
-                    chk("real", real)
-                    chk("cond1", cond1)
-                    chk("cond2", cond2)
-                    chk("cov_cond", cov_cond)
-                    chk("target", target)
-
-                    if include_diff_loss:
-                        encoder_output = decoder.encode(real)[1].detach()
-                        
-                        z, _ = torch.chunk(encoder_output, 2, dim=1)
-                        chk("encoder_output", encoder_output)
-                        chk("z", z)
-
-                        eta = torch.randn_like(z)
-                        t = torch.randint(0, self.n_steps, (n,), device=self.device)
-                        noisy = self.forward(z, t, eta)
-                        eta_theta = self.backward(noisy, t, cond1, cond2, cov_cond)
-                        loss_diff = mse(eta_theta, eta)  
-                    
-                    cov_cond_exp = cov_cond.repeat_interleave(m, dim=0)
-                    cond1_exp = cond1.repeat_interleave(m, dim=0)
-                    cond2_exp = cond2.repeat_interleave(m, dim=0)
-
-                    # --- deterministic DDIM sample ---
-                    steps = torch.linspace(0, self.n_steps - 1, denoising_steps, device=self.device).round().long()
-                    x = torch.randn(n * m , self.c, self.l, device=self.device)
-                    reversed_steps = steps.flip(0)
-
-                    for idx, t in enumerate(reversed_steps):
-                        t_tensor = t * torch.ones(n * m, device=self.device, dtype=torch.long)
-                        eta_theta = self.backward(x, t_tensor, cond1_exp, cond2_exp, cov_cond_exp)
-                        alpha_t_bar = self.alpha_bars[t].to(self.device)
-                        if idx < len(reversed_steps) - 1:
-                            s_prev = reversed_steps[idx + 1]
-                            alpha_t_bar_prev = self.alpha_bars[s_prev].to(self.device)
-                            x0 = (x - (1 - alpha_t_bar).sqrt() * eta_theta) / alpha_t_bar.sqrt()
-                            x = alpha_t_bar_prev.sqrt() * x0 + ((1 - alpha_t_bar_prev).clamp(min=1e-12)).sqrt() * eta_theta
-                            
-                        else:
-                            x0 = (x - (1 - alpha_t_bar).sqrt() * eta_theta) / alpha_t_bar.sqrt()
-                            x = x0
-                    chk("x", x)
-                    chk("eta_theta", eta_theta)
-
-                    x_decoded = decoder.decode(x)
-
-                    feat_pred = guide_model(x_decoded.view(n, m, 1, 4950).mean(dim = 1))
-                    feat_loss = mse(target, feat_pred)
-
-                    chk("x_decoded", x_decoded)
-                    chk("feat_pred", feat_pred)
-
-                    total_loss = loss_diff + lambd * feat_loss
-                    baseline_loss += total_loss.item() * n / len(loader_val.dataset)
-                    baseline_feature_loss += feat_loss.item() * n / len(loader_val.dataset)
-        
-        # Restore LoRA weights
-        for param, saved_data in lora_params:
-            param.data = saved_data.clone()
-        
-        print(f"✅ Baseline total loss: {baseline_loss:.6f}, feature loss: {baseline_feature_loss:.6f}\n")
-        # Ensure we always have a checkpoint to load later, even if fine-tuning
-        # never beats the baseline. This prevents downstream FileNotFoundError.
-        Path(store_path).parent.mkdir(parents=True, exist_ok=True)
-        torch.save(self.state_dict(), store_path)
-        best_loss = float("inf")
-        # ==========================================================
-        # 🔹 Training loop
-        # ==========================================================
-        fig, ax = plt.subplots()
-        ax.set_xlabel("Steps")
-        ax.set_ylabel("Loss")
-        ax.set_title("Training Loss over Epochs")
-
-        fig_mse, ax_mse = plt.subplots()
-        ax_mse.set_xlabel("Steps")
-        ax_mse.set_ylabel("MSE")
-        ax_mse.set_title("Validation MSE (pred vs y)")
-
-        fig_corr, ax_corr = plt.subplots()
-        ax_corr.set_xlabel("Steps")
-        ax_corr.set_ylabel("Pearson r")
-        ax_corr.set_title("Validation Correlation (pred vs y)")
-
-        reversed_steps = torch.linspace(0, self.n_steps - 1, denoising_steps, device=self.device).round().long().flip(0)
-        best_loss = float("inf")
-        step_count = 0
-        step_loss = 0.0
-        step_loss_count = 0
-        for epoch in tqdm(range(n_epochs), desc="Training progress", colour="#00ff00"):
-            self.network.train()
-            epoch_loss = 0.0
-            for vvstep, batch in enumerate(tqdm(loader, leave=False, desc=f"Epoch {epoch+1}/{n_epochs}", colour="#005500")):
-                self.network.train()
-                with torch.autocast(**autocast_kwargs):
-                    real_FC, cond1, cond2, cov_cond, target = batch
-                    real_FC = real_FC.to(self.device).float()
-                    cond1 = cond1.to(self.device).float()
-                    cov_cond = cov_cond.to(self.device).float()
-                    cond2 = cond2.to(self.device)
-                    B, S, C, _ = cond2.shape
-                    s_idx = random.randint(0, S - 1)
-                    cond2 = cond2[:, s_idx].to(self.device).reshape(B, C, -1)
-                    target = target.to(self.device).float()
-
-
-                    n = len(cov_cond)
-
-                    loss_diff = torch.tensor(0.0, device=self.device)
-                    if include_diff_loss:
-                        encoder_output = decoder.encode(real_FC)[1].detach()
-                        z, _ = torch.chunk(encoder_output, 2, dim=1)
-
-                        eta = torch.randn_like(z)
-                        t = torch.randint(0, self.n_steps, (n,), device=self.device)
-                        noisy = self.forward(z, t, eta)
-                        eta_theta = self.backward(noisy, t, cond1, cond2, cov_cond)
-                        loss_diff = mse(eta_theta, eta) 
-
-                    cov_cond_exp = cov_cond.repeat_interleave(m, dim=0)
-                    cond1_exp = cond1.repeat_interleave(m, dim=0)
-                    cond2_exp = cond2.repeat_interleave(m, dim=0)
-
-                    # --- partial DDIM sampling ---
-                    x = torch.randn(n * m, self.c, self.l, device=self.device)
-                    with torch.no_grad():
-                        for idx, tidx in enumerate(reversed_steps[:-K]):
-                            t_tensor = tidx * torch.ones(n * m, device=self.device, dtype=torch.long)
-                            eta_theta = self.backward(x, t_tensor, cond1_exp, cond2_exp, cov_cond_exp)
-                            alpha_t_bar = self.alpha_bars[tidx]
-                            s_prev = reversed_steps[idx + 1]
-                            alpha_t_bar_prev = self.alpha_bars[s_prev]
-                            x0 = (x - (1 - alpha_t_bar).sqrt() * eta_theta) / alpha_t_bar.sqrt()
-                            x = alpha_t_bar_prev.sqrt() * x0 + ((1 - alpha_t_bar_prev).clamp(min=1e-12)).sqrt() * eta_theta
-                    ##### here
-                    x0 = x.detach().requires_grad_(True)
-                    x = x0
-                    for idx, tidx in enumerate(reversed_steps[-K:]):
-                        t_tensor = tidx * torch.ones(n * m, device=self.device, dtype=torch.long)
-                        eta_theta = checkpoint(self.backward, x, t_tensor, cond1_exp, cond2_exp, cov_cond_exp, use_reentrant=False)
-                        #eta_theta = self.backward(x, t_tensor, cond1, cond2, cov_cond)
-                        alpha_t_bar = self.alpha_bars[tidx]
-                        if idx < len(reversed_steps[-K:]) - 1:
-                            s_prev = reversed_steps[idx + 1]
-                            alpha_t_bar_prev = self.alpha_bars[s_prev]
-                            x0 = (x - (1 - alpha_t_bar).sqrt() * eta_theta) / alpha_t_bar.sqrt()
-                            x = alpha_t_bar_prev.sqrt() * x0 + ((1 - alpha_t_bar_prev).clamp(min=1e-12)).sqrt() * eta_theta
-                        else:
-                            x = (x - (1 - alpha_t_bar).sqrt() * eta_theta) / alpha_t_bar.sqrt()
-                    # --- feature reconstruction loss ---
-
-                    x_decoded = decoder.decode(x)
-                    
-                    feat_pred = guide_model(x_decoded.view(n, m, 1, 4950).mean(dim = 1))
-                    loss_feat = mse(target, feat_pred)
-
-                    loss_LV = torch.tensor(0.0, device=self.device)
-                    if LV and n_rep > 0:
-                        x0_det = x.detach()
-                        for _ in range(n_rep):
-                            # go one step behind 
-                            noise = torch.randn_like(x0_det)
-                            x1 = alpha_t_bar.sqrt() * x0_det + (1 - alpha_t_bar).sqrt() * noise
-                            eta_theta = checkpoint(self.backward, x1, t_tensor, cond1_exp, cond2_exp, cov_cond_exp, use_reentrant=False)
-                            x_new = (x1 - (1 - alpha_t_bar).sqrt() * eta_theta) / alpha_t_bar.sqrt()
-                            x_new_decoded = decoder.decode(x_new)
-                            x_new_decoded_mean = x_new_decoded.view(n, m, 1, 4950).mean(dim = 1)
-                            feat_pred = guide_model(x_new_decoded_mean)
-                            loss_LV += mse(target, feat_pred)
-
-                    loss = (loss_diff + lambd * (loss_feat + n_rep * loss_LV) / (n_rep + 1)) / accumulation_steps
-
-                # --- backward + optimizer step ---
-                scaler.scale(loss).backward()
-                epoch_loss += loss.item() * n * accumulation_steps / len(loader.dataset)
-                step_loss += loss.item() * accumulation_steps 
-                step_loss_count += 1
-
-                if (vvstep + 1) % accumulation_steps == 0 or (vvstep + 1) == len(loader):
-                    step_count += 1
-                    scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(self.parameters(), 1.0)
-
-                    if debug:
-                        grad_stats = self._collect_lora_grad_stats()
-                        msg = (
-                            f"[LoRA grad] step={step_count:05d} | "
-                            f"mean_l2={grad_stats['mean_l2']} | "
-                            f"max_l2={grad_stats['max_l2']} | "
-                            f"min_l2={grad_stats['min_l2']}"
-                        )
-                        print(msg)
-                        for s in grad_stats["per_param"]:
-                            print(f"  - {s['name']}: l2={s['l2']:.4e}, max_abs={s['max_abs']:.4e}")
-                    scaler.step(optimizer)
-                    scaler.update()
-                    optimizer.zero_grad(set_to_none=True)
-                    if scheduler is not None:
-                        scheduler.step()
-                    #print(f"[DEBUG] Optimizer step {step_count} triggered at batch {vvstep+1}")
-
-                    if step_count  % steps_log == 0:
-                        #print(f"[DEBUG] Validation triggered {step_count} triggered at steps_log {steps_log}")
-                        # ======================================================
-                        # 🔹 Validation
-                        # ======================================================
-                        self.network.eval()
-                        val_loss, val_feat_loss, val_feat_loss_raw = 0.0, 0.0, 0.0
-
-                        with torch.no_grad():
-                            for vstep, batch in enumerate(tqdm(loader_val, leave=False, desc="Validation", colour="#005500")):
-                                with torch.autocast(**autocast_kwargs):
-                                    real_FC, cond1, cond2, cov_cond, target = batch
-                                    real_FC = real_FC.to(self.device).float()
-                                    cond1 = cond1.to(self.device).float()
-                                    cov_cond = cov_cond.to(self.device).float()
-                                    cond2 = cond2.to(self.device)
-                                    B, S, C, _ = cond2.shape
-                                    s_idx = random.randint(0, S - 1)
-                                    cond2 = cond2[:, s_idx].to(self.device).reshape(B, C, -1)
-                                    target = target.to(self.device).float()
-                                    target_z = (target - y_mean) / y_std
-                                    n = len(cov_cond)
-
-                                    loss_diff = torch.tensor(0.0, device=self.device)
-                                    if include_diff_loss:
-                                        encoder_output = decoder.encode(real_FC)[1].detach()
-                                        z, _ = torch.chunk(encoder_output, 2, dim=1)
-
-                                        eta = torch.randn_like(z)
-                                        t = torch.randint(0, self.n_steps, (n,), device=self.device)
-                                        noisy = self.forward(z, t, eta)
-                                        eta_theta = self.backward(noisy, t, cond1, cond2, cov_cond)
-                                        loss_diff = mse(eta_theta, eta) 
-
-                                    cov_cond_exp = cov_cond.repeat_interleave(m, dim=0)
-                                    cond1_exp = cond1.repeat_interleave(m, dim=0)
-                                    cond2_exp = cond2.repeat_interleave(m, dim=0)
-
-                                    # --- deterministic DDIM sample ---
-                            
-                                    x = torch.randn(n * m , self.c, self.l, device=self.device)
-                                    for idx, t in enumerate(reversed_steps):
-                                        t_tensor = t * torch.ones(n * m, device=self.device, dtype=torch.long)
-                                        eta_theta = self.backward(x, t_tensor, cond1_exp, cond2_exp, cov_cond_exp)
-                                        alpha_t_bar = self.alpha_bars[t].to(self.device)
-                                        if idx < len(reversed_steps) - 1:
-                                            s_prev = reversed_steps[idx + 1]
-                                            alpha_t_bar_prev = self.alpha_bars[s_prev].to(self.device)
-                                            x0 = (x - (1 - alpha_t_bar).sqrt() * eta_theta) / alpha_t_bar.sqrt()
-                                            x = alpha_t_bar_prev.sqrt() * x0 + ((1 - alpha_t_bar_prev).clamp(min=1e-12)).sqrt() * eta_theta 
-                                        else:
-                                            x0 = (x - (1 - alpha_t_bar).sqrt() * eta_theta) / alpha_t_bar.sqrt()
-                                            x = x0
-
-                                    x_decoded = decoder.decode(x)
-                                    feat_pred = guide_model(x_decoded.view(n, m, 1, 4950).mean(dim = 1))
-                                    loss_feat = mse(target, feat_pred)
-                                    loss_total = loss_diff + lambd * loss_feat
-
-                                    val_loss += loss_total.item() * n / len(loader_val.dataset)
-                                    val_feat_loss += loss_feat.item() * n / len(loader_val.dataset)
-                        # ======================================================
-                        # 🔹 Early stopping & logging
-                        # ======================================================
-                        if val_feat_loss < best_loss:
-                            best_loss, best_step = val_feat_loss, step_count 
-                            no_improvement_counter = 0
-                            torch.save(self.state_dict(), store_path)
-                        else:
-                            no_improvement_counter += 1
-
-                        if step_count % (5 * steps_log) == 0:
-                            torch.save(self.state_dict(), store_path[:-3] + f"_step{step_count + 1}.pt")
-                        if no_improvement_counter >= patience:
-                            print(f"⏹️ Early stopping after {no_improvement_counter} validation intervals ({step_count} steps total).")
-                            break
-
-                        current_lr = optimizer.param_groups[0]['lr']
-                        print(
-                            f"Step {step_count:5d} | LR={current_lr:.2e} | "
-                            f"Train={step_loss / step_loss_count:.4f} | Val={val_loss:.4f} | "
-                            f"Val_feat_norm={val_feat_loss:.4f} | Val_feat_raw={val_feat_loss_raw:.4f} | "
-                            f"Best (norm)={best_loss:.4f} (step {best_step})"
-                        )
-
-
-                        
-
-                        # --- Plot & print ---
-                        losses.append(step_loss / step_loss_count)
-                        val_losses.append(val_loss)
-                        clear_output(wait=True)
-                        ax.clear()
-                        ax.plot(losses, label="Train", color="blue")
-                        ax.plot(val_losses, label="Val", color="red")
-                        ax.legend(loc="upper right")
-
-                        # 🔹 Save (overwrite) the figure with model identifier
-                        save_dir = "scripts/plots"
-                        os.makedirs(save_dir, exist_ok=True)
-
-                        # Extract everything before .pt or .pth (no extension)
-                        filename = os.path.basename(store_path)
-                        if filename.endswith(".pt") or filename.endswith(".pth"):
-                            model_id = filename.rsplit(".", 1)[0]  # remove last extension only
-                        else:
-                            model_id = filename  # fallback if extension missing
-
-                        # Include the run folder (contains the timestamp) to keep plots unique across reruns
-                        # parent[3] corresponds to the run folder under .../times/<run_id>/finetuned_models/...
-                        run_id = Path(store_path).parents[3].name  # e.g., 7min_fm_7min_20260126-003838_resamplefix_20260202-231921
-                        scale_tag = "scaled" if "scaled" in run_id.lower() else "noscale"
-
-                        save_plot_path = os.path.join(save_dir, f"loss_plot_{scale_tag}_{run_id}_{model_id}_fm.png")
-                        fig.savefig(save_plot_path, dpi=150, bbox_inches="tight")
-                        step_loss = 0.0
-                        step_loss_count = 0
-
-
-        
     def fine_tune_DRAFT_prediction(
         self,
         loader,
@@ -1215,7 +745,6 @@ class ddpm(nn.Module):
                         cov_cond = cov_cond.to(self.device).float()
                         cond2 = cond2.to(self.device)
                         B, S, C, _ = cond2.shape
-                        #s_idx = random.randint(0, S - 1)
                         s_idx = 0
                         cond2 = cond2[:, s_idx].to(self.device).reshape(B, C, -1)
                         target = target.to(self.device).float()
@@ -1252,7 +781,6 @@ class ddpm(nn.Module):
                             chk("z", z)
 
                             eta = torch.randn_like(z)
-                            #t = torch.randint(0, self.n_steps, (n,), device=self.device)
                             noisy = self.forward(z, t, eta)
                             eta_theta = self.backward(noisy, t, cond1, cond2, cov_cond)
 
@@ -1385,7 +913,6 @@ class ddpm(nn.Module):
                     cov_cond = cov_cond.to(self.device).float()
                     cond2 = cond2.to(self.device)
                     B, S, C, _ = cond2.shape
-                    #s_idx = random.randint(0, S - 1)
                     s_idx = sample_slice(S, p0=0.95)
                     cond2 = cond2[:, s_idx].to(self.device).reshape(B, C, -1)
                     target = target.to(self.device).float()
@@ -1450,11 +977,8 @@ class ddpm(nn.Module):
 
                     x_decoded = decoder.decode(x)
 
-                    ####### to inspect 
                     x_debug = x_decoded.view(n, m, 1, 4950).mean(dim = 1).detach().cpu()
                     mat_x_debug = upper_elements_to_symmetric_matrix_no_chan(x_debug.squeeze(1))[0]
-
-                    #####
 
                     x_decoded_mean = x_decoded.view(n, m, 1, 4950).mean(dim = 1)
                     feat_pred = guide_model(x_decoded_mean)
@@ -1496,14 +1020,12 @@ class ddpm(nn.Module):
                 scaler.scale(loss).backward()
 
 
-                #loss.backward()
                 epoch_loss += loss.item() * n * accumulation_steps / len(loader.dataset)
                 step_loss += loss.item() * accumulation_steps 
                 step_loss_count += 1
 
                 if (vvstep + 1) % accumulation_steps == 0 or (vvstep + 1) == len(loader):
                     step_count += 1
-                    #scaler.unscale_(optimizer)
                     torch.nn.utils.clip_grad_norm_(
                         (p for p in self.parameters() if p.requires_grad),
                         1.0
@@ -1524,7 +1046,6 @@ class ddpm(nn.Module):
                     scaler.update()
                     optimizer.zero_grad(set_to_none=True)
                     scheduler.step()
-                    #print(f"[DEBUG] Optimizer step {step_count} triggered at batch {vvstep+1}")
                     # After optimizer.step()
                     if debug:
                         with torch.no_grad():
@@ -1532,7 +1053,6 @@ class ddpm(nn.Module):
                             diff = torch.norm(weight_before - weight_after)
                             print(f"DEBUG: Weight Delta for proj_out: {diff.item():.8e}")
                     if step_count  % steps_log == 0:
-                        #print(f"[DEBUG] Validation triggered {step_count} triggered at steps_log {steps_log}")
                         # ======================================================
                         # 🔹 Validation
                         # ======================================================
@@ -1554,7 +1074,6 @@ class ddpm(nn.Module):
                                     cov_cond = cov_cond.to(self.device).float()
                                     cond2 = cond2.to(self.device)
                                     B, S, C, _ = cond2.shape
-                                    #s_idx = random.randint(0, S - 1)
                                     s_idx = 0
                                     cond2 = cond2[:, s_idx].to(self.device).reshape(B, C, -1)
                                     target = target.to(self.device).float()
@@ -1569,7 +1088,6 @@ class ddpm(nn.Module):
                                         z, _ = torch.chunk(encoder_output, 2, dim=1)
 
                                         eta = torch.randn_like(z)
-                                        #t = torch.randint(0, self.n_steps, (n,), device=self.device)
                                         noisy = self.forward(z, t, eta)
                                         eta_theta = self.backward(noisy, t, cond1, cond2, cov_cond)
                                         # teacher prediction (base model)
@@ -1645,8 +1163,6 @@ class ddpm(nn.Module):
                         else:
                             no_improvement_counter += 1
 
-                        #if step_count % (5 * steps_log) == 0:
-                        #    torch.save(self.state_dict(), store_path[:-3] + f"_step{step_count + 1}.pt")
                         if no_improvement_counter >= patience:
                             print(f"⏹️ Early stopping after {no_improvement_counter} validation intervals ({step_count} steps total).")
                             break

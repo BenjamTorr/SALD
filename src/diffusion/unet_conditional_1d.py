@@ -1,3 +1,6 @@
+# Down/Mid/Up block layout adapted from https://github.com/explainingai-code/DDPM-Pytorch
+# and https://github.com/explainingai-code/StableDiffusion-PyTorch
+
 import torch
 import torch.nn as nn
 

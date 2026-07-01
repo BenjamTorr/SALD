@@ -97,7 +97,7 @@ def copy_prior_artifacts(prev_paths: ExperimentPaths, new_paths: ExperimentPaths
     shutil.copytree(prev_paths.latents, new_paths.latents, dirs_exist_ok=True)
 
     # Diffusion checkpoint
-    diff_ckpt = "ddpm_fm.pt" if cfg.model_type == "fm" else "ddpm_graph.pt"
+    diff_ckpt = "ddpm_fm.pt"
     shutil.copy2(prev_paths.diffusion / diff_ckpt, new_paths.diffusion / diff_ckpt)
 
     # Resampled SC (if present)
@@ -132,7 +132,7 @@ def load_diffusion_from_ckpt(cfg, paths: ExperimentPaths, device):
     with open("../config/diffusion_config.yaml", "r") as f:
         diffusion_config = yaml.safe_load(f)
 
-    model, ckpt_name = build_diffusion_model(cfg.model_type, diffusion_config, device)
+    model, ckpt_name = build_diffusion_model(diffusion_config, device)
     ckpt_path = paths.diffusion / ckpt_name
     model.load_state_dict(torch.load(ckpt_path, map_location=device))
     model = model.to(device)

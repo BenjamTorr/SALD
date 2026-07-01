@@ -22,10 +22,7 @@ from data.loaders import (
     custom_collate_fn,
 )
 from diffusion.ddpm import ddpm
-from diffusion.ddpm_graph import ddpm_graph
 from diffusion.dit_FiLM import dit_film
-from diffusion.dit_cat import dit_cat
-from diffusion.graph_encoder import SCGraphModel1D
 from fine_tuning.LoRA import apply_lora_ditwcat
 from guiding_model.predictor import LinearRegression, RidgeRegression
 from utils.preprocessing.transformations import (
@@ -44,7 +41,7 @@ CONFIG = {
     "metadata_path": "../config/metadata_full.yaml",
     "predictors": "bc",          # compact selector: b=base, v=vae, c=corr
     "time_short": 4,              # FC_t window in minutes (1-7)
-    "model_type": "fm",        # "graph" or "fm"
+    "model_type": "fm",
     "standardize": False,          # subtract mean / divide std of FC20
     "use_sc": True,
     "use_fct": True,
@@ -95,7 +92,7 @@ CONFIG = {
         "batch_size": 256,
     },
     "finetune": {
-        "run_name": "config_19",   # key in config/lora_config.yaml
+        "run_name": "config_21",   # key in config/lora_config.yaml
         "epochs": 4,
         "patience": 10,
         "use_scheduler": False,
@@ -541,41 +538,6 @@ def build_diffusion_loaders(
         else:
             sc_train, sc_val, sc_test = data["SC"]["train"], data["SC"]["val"], data["SC"]["test"]
 
-    loaders["graph_train"] = DataLoader(
-        FC_SCGraphDataset(
-            latents["train_x0"],
-            sc_train,
-            latents["train_xt"],
-            data["Cov"]["train"],
-            data["target"]["train"],
-            age_dim=126,
-            transform_sc=not use_resample,
-            shape=sc_shape,
-        ),
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        collate_fn=custom_collate_fn,
-        pin_memory=pin_memory,
-    )
-    loaders["graph_val"] = DataLoader(
-        FC_SCGraphDataset(
-            latents["val_x0"],
-            sc_val,
-            latents["val_xt"],
-            data["Cov"]["val"],
-            data["target"]["val"],
-            age_dim=126,
-            transform_sc=not use_resample,
-            shape=sc_shape,
-        ),
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        collate_fn=custom_collate_fn,
-        pin_memory=pin_memory,
-    )
-
     loaders["fm_train"] = DataLoader(
         FC_SC_vec_Dataset(
             latents["train_x0"],
@@ -611,45 +573,26 @@ def build_diffusion_loaders(
     return loaders
 
 
-def build_diffusion_model(model_type, diffusion_config, device):
+def build_diffusion_model(diffusion_config, device):
     ddpm_cfg = diffusion_config["DDPM_config"]
     schedule = ddpm_cfg.get("schedule", "linear")
     vector_cl = (ddpm_cfg["vector_c"], ddpm_cfg["vector_l"])
 
-    if model_type == "fm":
-        network = dit_film(
-            seq_len=diffusion_config["DIT_config_cat"]["seq_len"],
-            seq_channels=diffusion_config["DIT_config_cat"]["seq_channels"],
-            config=diffusion_config["DIT_config_film"],
-        ).to(device)
-        model = ddpm(
-            network=network,
-            n_steps=ddpm_cfg["n_steps"],
-            min_beta=ddpm_cfg["min_beta"],
-            max_beta=ddpm_cfg["max_beta"],
-            schedule=schedule,
-            device=device,
-            vector_cl=vector_cl,
-        ).to(device)
-        ckpt_name = "ddpm_fm.pt"
-    else:
-        network = dit_cat(
-            seq_len=diffusion_config["DIT_config_cat"]["seq_len"],
-            seq_channels=diffusion_config["DIT_config_cat"]["seq_channels"],
-            config=diffusion_config["DIT_config_cat"],
-        ).to(device)
-        graph_enc = SCGraphModel1D(args=diffusion_config["Graph_encoder_config"]).to(device)
-        model = ddpm_graph(
-            network=network,
-            GraphEncoder=graph_enc,
-            n_steps=ddpm_cfg["n_steps"],
-            min_beta=ddpm_cfg["min_beta"],
-            max_beta=ddpm_cfg["max_beta"],
-            schedule=schedule,
-            device=device,
-            vector_cl=vector_cl,
-        ).to(device)
-        ckpt_name = "ddpm_graph.pt"
+    network = dit_film(
+        seq_len=diffusion_config["DIT_config_cat"]["seq_len"],
+        seq_channels=diffusion_config["DIT_config_cat"]["seq_channels"],
+        config=diffusion_config["DIT_config_film"],
+    ).to(device)
+    model = ddpm(
+        network=network,
+        n_steps=ddpm_cfg["n_steps"],
+        min_beta=ddpm_cfg["min_beta"],
+        max_beta=ddpm_cfg["max_beta"],
+        schedule=schedule,
+        device=device,
+        vector_cl=vector_cl,
+    ).to(device)
+    ckpt_name = "ddpm_fm.pt"
     return model, ckpt_name
 
 
@@ -713,21 +656,6 @@ def build_finetune_loader(cfg, data, latents, device, sc_shape, split="train", b
     real_fc20 = data.get("FC", {}).get(split, None)
     mask = _prediction_mask(y, split=split)
     pin_memory = device.type == "cuda"
-
-    if cfg.model_type == "graph":
-        dataset = FC_SCGraphDataset(
-            fc20[mask],
-            sc[mask],
-            xt[mask],
-            cov[mask],
-            y[mask],
-            age_dim=126,
-            transform_sc=(not cfg.use_resample),
-            shape=sc_shape,
-        )
-        dataset.real_target = real_y[mask]
-        dataset.real_fc20 = real_fc20[mask] if real_fc20 is not None else None
-        return DataLoader(dataset, batch_size=batch_size, shuffle=(split == "train"), collate_fn=custom_collate_fn, pin_memory=pin_memory)
 
     dataset = FC_SC_vec_Dataset(
         fc20[mask],
@@ -978,14 +906,14 @@ def train_diffusion(cfg, data, paths: ExperimentPaths, device, sc_size: int):
         paths=paths,
     )
 
-    model, ckpt_name = build_diffusion_model(cfg.model_type, diffusion_config, device)
+    model, ckpt_name = build_diffusion_model(diffusion_config, device)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.diffusion.lr)
 
     paths.diffusion.mkdir(parents=True, exist_ok=True)
     store_path = paths.diffusion / ckpt_name
 
-    train_loader = loaders["graph_train"] if cfg.model_type == "graph" else loaders["fm_train"]
-    val_loader = loaders["graph_val"] if cfg.model_type == "graph" else loaders["fm_val"]
+    train_loader = loaders["fm_train"]
+    val_loader = loaders["fm_val"]
 
     model.train_ddpm_amp(
         loader=train_loader,
@@ -1043,37 +971,17 @@ def sample_diffusion(cfg, model, data, paths: ExperimentPaths, device, sc_shape,
     cov = data["Cov"][data_split][mask]
     y_masked = y[mask]
 
-    if cfg.model_type == "graph":
-        dataset = FC_SCGraphDataset(
-            x0,
-            sc,
-            xt,
-            cov,
-            y_masked,
-            age_dim=126,
-            transform_sc= (not cfg.use_resample),
-            shape=sc_shape,
-        )
-        loader = DataLoader(
-            dataset,
-            batch_size=cfg.sampling.batch_size,
-            shuffle=False,
-            num_workers=cfg.num_workers,
-            collate_fn=custom_collate_fn,
-            pin_memory=(device.type == "cuda"),
-        )
-    else:
-        dataset = FC_SC_vec_Dataset(
-            x0,
-            sc,
-            xt,
-            cov,
-            y_masked,
-            age_dim=126,
-            transform_sc= (not cfg.use_resample),
-            shape=sc_shape,
-        )
-        loader = DataLoader(dataset, batch_size=cfg.sampling.batch_size, shuffle=False, num_workers=cfg.num_workers, pin_memory=(device.type == "cuda"))
+    dataset = FC_SC_vec_Dataset(
+        x0,
+        sc,
+        xt,
+        cov,
+        y_masked,
+        age_dim=126,
+        transform_sc= (not cfg.use_resample),
+        shape=sc_shape,
+    )
+    loader = DataLoader(dataset, batch_size=cfg.sampling.batch_size, shuffle=False, num_workers=cfg.num_workers, pin_memory=(device.type == "cuda"))
 
     vae = load_trained_vae(cfg, paths, device)
 
@@ -1084,10 +992,7 @@ def sample_diffusion(cfg, model, data, paths: ExperimentPaths, device, sc_shape,
     model.eval()
     with torch.no_grad():
         for batch in loader:
-            if cfg.model_type == "graph":
-                _, cond1, cond2, cov, _ = batch
-            else:
-                cond1, cond2, cov = batch[1], batch[2], batch[3]
+            cond1, cond2, cov = batch[1], batch[2], batch[3]
 
             samples = model.sample_repeated_chunked_ddim(
                 cond1_data=cond1.to(device),
@@ -1209,8 +1114,8 @@ def finetune_diffusion(
         cfg, data, latents, device, sc_shape, split="val", batch_size=lora_cfg["batch_size"], paths=paths
     )
 
-    model, _ = build_diffusion_model(cfg.model_type, diffusion_config, device)
-    model.load_state_dict(torch.load(paths.diffusion / ("ddpm_fm.pt" if cfg.model_type == "fm" else "ddpm_graph.pt"), map_location=device))
+    model, _ = build_diffusion_model(diffusion_config, device)
+    model.load_state_dict(torch.load(paths.diffusion / "ddpm_fm.pt", map_location=device))
     lora_dims = _extract_lora_dims(lora_cfg)
     apply_lora_ditwcat(
         model,
@@ -1317,7 +1222,7 @@ def sample_finetuned(cfg, data, paths: ExperimentPaths, device, sc_size: int, pr
         , paths=paths
     )
 
-    model, _ = build_diffusion_model(cfg.model_type, diffusion_config, device)
+    model, _ = build_diffusion_model(diffusion_config, device)
     lora_dims = _extract_lora_dims(lora_cfg)
     apply_lora_ditwcat(
         model,
@@ -1341,10 +1246,7 @@ def sample_finetuned(cfg, data, paths: ExperimentPaths, device, sc_size: int, pr
     all_samples = []
     with torch.no_grad():
         for batch in loader:
-            if cfg.model_type == "graph":
-                _, cond1, cond2, cov, _ = batch
-            else:
-                cond1, cond2, cov = batch[1], batch[2], batch[3]
+            cond1, cond2, cov = batch[1], batch[2], batch[3]
 
             samples = model.sample_repeated_chunked_ddim(
                 cond1_data=cond1.to(device),

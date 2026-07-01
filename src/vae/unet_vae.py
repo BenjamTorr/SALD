@@ -1,3 +1,5 @@
+# VAE block layout adapted from https://github.com/explainingai-code/StableDiffusion-PyTorch
+
 from contextlib import nullcontext
 from pathlib import Path
 import torch

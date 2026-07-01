@@ -9,12 +9,9 @@ import yaml
 from torch.utils.data import DataLoader
 
 from data.load_data import load_data
-from data.loaders import FC_SCGraphDataset, FC_SC_vec_Dataset, custom_collate_fn
+from data.loaders import FC_SC_vec_Dataset
 from diffusion.ddpm import ddpm
-from diffusion.ddpm_graph import ddpm_graph
 from diffusion.dit_FiLM import dit_film
-from diffusion.dit_cat import dit_cat
-from diffusion.graph_encoder import SCGraphModel1D
 
 
 DEFAULT_LATENT_DIR = Path("/data/benjamin_project/diffusion_models/experiments/no_mean/latent_data")
@@ -72,41 +69,6 @@ def build_loaders(data, latents, device, batch_size, num_workers, sc_shape):
     loaders = {}
     pin_memory = device.type == "cuda"
 
-    loaders["graph_train"] = DataLoader(
-        FC_SCGraphDataset(
-            latents["train_x0"],
-            data["SC"]["train"],
-            latents["train_xt"],
-            data["Cov"]["train"],
-            data["target"]["train"],
-            age_dim=126,
-            transform_sc=True,
-            shape=sc_shape,
-        ),
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        collate_fn=custom_collate_fn,
-        pin_memory=pin_memory,
-    )
-    loaders["graph_val"] = DataLoader(
-        FC_SCGraphDataset(
-            latents["val_x0"],
-            data["SC"]["val"],
-            latents["val_xt"],
-            data["Cov"]["val"],
-            data["target"]["val"],
-            age_dim=126,
-            transform_sc=True,
-            shape=sc_shape,
-        ),
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        collate_fn=custom_collate_fn,
-        pin_memory=pin_memory,
-    )
-
     loaders["fm_train"] = DataLoader(
         FC_SC_vec_Dataset(
             latents["train_x0"],
@@ -143,47 +105,26 @@ def build_loaders(data, latents, device, batch_size, num_workers, sc_shape):
     return loaders
 
 
-def build_model(model_type, diffusion_config, device):
+def build_model(diffusion_config, device):
     ddpm_cfg = diffusion_config["DDPM_config"]
     schedule = ddpm_cfg.get("schedule", "linear")
     vector_cl = (ddpm_cfg["vector_c"], ddpm_cfg["vector_l"])
 
-    if model_type == "fm":
-        network = dit_film(
-            seq_len=diffusion_config["DIT_config_cat"]["seq_len"],
-            seq_channels=diffusion_config["DIT_config_cat"]["seq_channels"],
-            config=diffusion_config["DIT_config_film"],
-        ).to(device)
-        model = ddpm(
-            network=network,
-            n_steps=ddpm_cfg["n_steps"],
-            min_beta=ddpm_cfg["min_beta"],
-            max_beta=ddpm_cfg["max_beta"],
-            schedule=schedule,
-            device=device,
-            vector_cl=vector_cl,
-        ).to(device)
-        default_name = "graph_fm.pt"
-    elif model_type == "graph":
-        network = dit_cat(
-            seq_len=diffusion_config["DIT_config_cat"]["seq_len"],
-            seq_channels=diffusion_config["DIT_config_cat"]["seq_channels"],
-            config=diffusion_config["DIT_config_cat"],
-        ).to(device)
-        graph_enc = SCGraphModel1D(args=diffusion_config["Graph_encoder_config"]).to(device)
-        model = ddpm_graph(
-            network=network,
-            GraphEncoder=graph_enc,
-            n_steps=ddpm_cfg["n_steps"],
-            min_beta=ddpm_cfg["min_beta"],
-            max_beta=ddpm_cfg["max_beta"],
-            schedule=schedule,
-            device=device,
-            vector_cl=vector_cl,
-        ).to(device)
-        default_name = "graph_log_transform.pt"
-    else:
-        raise ValueError(f"Unknown model type: {model_type}")
+    network = dit_film(
+        seq_len=diffusion_config["DIT_config_cat"]["seq_len"],
+        seq_channels=diffusion_config["DIT_config_cat"]["seq_channels"],
+        config=diffusion_config["DIT_config_film"],
+    ).to(device)
+    model = ddpm(
+        network=network,
+        n_steps=ddpm_cfg["n_steps"],
+        min_beta=ddpm_cfg["min_beta"],
+        max_beta=ddpm_cfg["max_beta"],
+        schedule=schedule,
+        device=device,
+        vector_cl=vector_cl,
+    ).to(device)
+    default_name = "graph_fm.pt"
 
     return model, default_name
 
@@ -224,19 +165,16 @@ def main(args):
         sc_shape=sc_shape,
     )
 
-    model, default_ckpt_name = build_model(args.model, diffusion_config, device)
+    model, default_ckpt_name = build_model(diffusion_config, device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     model_dir = Path(args.model_dir) if args.model_dir else DEFAULT_MODEL_DIR
     model_dir.mkdir(parents=True, exist_ok=True)
     store_path = Path(args.store_path) if args.store_path else model_dir / default_ckpt_name
 
-    train_loader = loaders["graph_train"] if args.model == "graph" else loaders["fm_train"]
-    val_loader = loaders["graph_val"] if args.model == "graph" else loaders["fm_val"]
-
     model.train_ddpm_amp(
-        loader=train_loader,
-        loader_val=val_loader,
+        loader=loaders["fm_train"],
+        loader_val=loaders["fm_val"],
         n_epochs=args.epochs,
         optimizer=optimizer,
         patience=args.patience,
@@ -248,8 +186,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train diffusion models (fm or graph) using saved VAE latents.")
-    parser.add_argument("--model", choices=["fm", "graph"], default="graph", help="Choose between fm (ddpm_fm) or graph model.")
+    parser = argparse.ArgumentParser(description="Train the fm diffusion model using saved VAE latents.")
     parser.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--latent-dir", default=str(DEFAULT_LATENT_DIR))
     parser.add_argument("--model-dir", default=str(DEFAULT_MODEL_DIR))

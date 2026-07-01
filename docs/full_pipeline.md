@@ -4,7 +4,7 @@ This script (`scripts/run_full_experiment.py`) runs the entire workflow end‑to
 
 1. Train VAE on FC20 ↦ latent, export latents/recons/Frobenius stats.
 2. Train two ridge predictors (base, VAE‑noise augmented) from FC → target.
-3. Train diffusion model (graph or fm) on exported latents.
+3. Train the fm diffusion model on exported latents.
 4. Optional raw sampling from the trained diffusion model.
 5. LoRA fine‑tune the diffusion model twice (base + VAE predictors).
 6. Sample both fine‑tuned models and save decoded FCs.
@@ -24,7 +24,7 @@ No CLI flags are required.
 
 - `experiment_id`: tag for the run; used in output folder name.
 - `time_short`: FC_t window (minutes, 1–7) used across VAE, diffusion, ridge.
-- `model_type`: `"graph"` or `"fm"` diffusion.
+- `model_type`: diffusion backbone tag, always `"fm"`.
 - `standardize`: True → subtract mean/divide std of FC20 before training.
 - `use_sc`, `use_fct`, `use_cov`, `use_resample`: conditioning / SC options.
 - `device`, `seed`, `num_workers`.
