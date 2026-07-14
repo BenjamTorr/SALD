@@ -304,7 +304,7 @@ class ddpm(nn.Module):
                     cov_cond = cov_cond.to(self.device).float()
                     cond1 = cond1.to(self.device).float()
                     B, S, C, _ = cond2.shape
-                    s_idx = sample_slice(S, p0=0.85)
+                    s_idx = sample_slice(S, p0=1)
                     cond2 = cond2[:, s_idx].to(self.device).reshape(B,C,-1)
                     n = len(x0)
 
@@ -455,7 +455,7 @@ class ddpm(nn.Module):
                     cov_cond = cov_cond.to(self.device).float()
                     cond1 = cond1.to(self.device).float()
                     B, S, C, _ = cond2.shape
-                    s_idx =  sample_slice(S, p0=0.85)
+                    s_idx =  sample_slice(S, p0=1)
                     cond2 = cond2[:, s_idx].to(self.device).reshape(B, C, -1)
                     n = len(x0)
 
@@ -913,7 +913,7 @@ class ddpm(nn.Module):
                     cov_cond = cov_cond.to(self.device).float()
                     cond2 = cond2.to(self.device)
                     B, S, C, _ = cond2.shape
-                    s_idx = sample_slice(S, p0=0.95)
+                    s_idx = sample_slice(S, p0=1)
                     cond2 = cond2[:, s_idx].to(self.device).reshape(B, C, -1)
                     target = target.to(self.device).float()
                     # Normalize targets once per batch for feature loss
